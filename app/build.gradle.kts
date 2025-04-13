@@ -49,4 +49,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.x.x")
+    testImplementation ("com.squareup.okhttp3:mockwebserver:4.9.3")
 }

@@ -1,27 +1,38 @@
 package com.example.english_app_studypart
 
-import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
+import com.example.english_app_studypart.viewmodel.WordViewModel
 import com.example.english_app_studypart.databinding.ActivityMainBinding
-import com.example.english_app_studypart.datas.WordData // WordData import
+import com.example.english_app_studypart.datas.Word
+
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private companion object { private const val TAG = "MainActivity" }
+    private lateinit var wordViewModel: WordViewModel // viewmodel 추가함
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // viewModel 초기화
+        wordViewModel = ViewModelProvider(this)[WordViewModel::class.java]
+
+
         Log.d(TAG, "onCreate: Initializing application.")
 
         // --- 시나리오 반영: 앱 시작 시 WordManager 초기화 ---
-        initializeWordManager()
+        val viewModel = ViewModelProvider(this)[WordViewModel::class.java]
+
+        viewModel.fetchAllWords { selectedWords ->
+            initializeWordManager(selectedWords)
+        }
 
         // --- 시나리오 반영: 버튼 클릭 시 첫 학습/퀴즈 화면 시작 ---
         // Study 버튼 클릭 시 학습 프로세스 시작
@@ -36,10 +47,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     // WordManager를 초기화하는 함수
-    private fun initializeWordManager() {
-        Log.d(TAG, "Initializing WordManager with data from WordData...")
-        // WordData에 있는 단어 목록으로 WordManager 초기화
-        WordManager.initialize(WordData.localWords.toList()) // 방어적 복사본 전달
+    private fun initializeWordManager(selectedWords: List<Word>) {
+        Log.d(TAG, "Initializing WordManager with selected words...")
+        WordManager.initialize(selectedWords)
     }
 
     // 첫 학습/퀴즈 화면을 시작하는 함수
