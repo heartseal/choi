@@ -1,0 +1,35 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_admin"
+        android:icon="@drawable/baseline_auto_stories_24"
+        android:title="관리자 페이지" />
+    <item
+        android:id="@+id/nav_all_words"
+        android:title="전체 학습 리스트"
+        android:icon="@drawable/baseline_format_list_numbered_24" />
+
+    <item
+        android:id="@+id/nav_progress"
+        android:title="전체 학습 현황"
+        android:icon="@drawable/baseline_add_chart_24" />
+
+    <item
+        android:id="@+id/nav_diligence"
+        android:title="성실도"
+        android:icon="@drawable/baseline_app_shortcut_24" />
+
+    <item
+        android:id="@+id/nav_settings"
+        android:title="설정"
+        android:icon="@drawable/baseline_app_settings_alt_24" />
+</menu>
+
+
+
+
+
+
+
+
+
+
