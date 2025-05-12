@@ -31,7 +31,9 @@
         <activity android:name=".ui.WordStudyActivity" />
         <activity android:name=".ui.WordQuizActivity" />
         <activity android:name=".ui.ReviewActivity" />
-
+        <activity
+            android:name=".ui.LoginActivity"
+            android:exported="true"> </activity>
     </application>
     <uses-permission android:name="android.permission.INTERNET"/>
 

@@ -8,5 +8,5 @@ data class Word(
     val id: Int,
     val word: String,
     val meaning: String,
-    // val priority: Boolean? = null // 필요하다면 추가
+    val priority: Int = 0 // 숫자가 클수록 높은 우선순위
 ) : Parcelable

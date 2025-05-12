@@ -1,129 +1,228 @@
 package com.example.englishapp.ui
 
+import android.app.Activity
+import android.content.Intent // MainActivity로 결과 전달 시 필요할 수 있음
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
 import android.widget.Button
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.englishapp.R
 import com.example.englishapp.model.QuizQuestion
+import com.example.englishapp.model.Word // Word 모델 import
 import com.example.englishapp.network.ApiServicePool
 import com.example.englishapp.network.ReviewResultItem
 import com.example.englishapp.network.StagedReviewResultRequest
 import com.example.englishapp.viewmodel.ReviewViewModel
+import com.example.englishapp.viewmodel.StudyViewModel // 사용자님의 StudyViewModel
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 
-
+// "오늘의 누적 복습" 퀴즈 화면
 class ReviewActivity : AppCompatActivity() {
 
-    private lateinit var textQuestion: TextView
-    private lateinit var textProgress: TextView
+    // ViewModels
+    private val reviewViewModel: ReviewViewModel by viewModels()
+    private val studyViewModel: StudyViewModel by viewModels() // 사용자님의 StudyViewModel 사용
+
+    // UI 요소 (activity_quiz.xml 재사용)
+    private lateinit var quizWordText: TextView
+    private lateinit var quizProgressText: TextView
     private lateinit var optionButtons: List<Button>
-    private lateinit var buttonClose: ImageButton
+    private lateinit var closeQuizButton: ImageButton
+    private lateinit var feedbackImage: ImageView
+    private lateinit var quizLoadingBar: ProgressBar
+    private lateinit var rootQuizView: View
 
-    private var quizQuestions: List<QuizQuestion> = emptyList()
-    private var currentIndex = 0
-    private val reviewResults = mutableListOf<ReviewResultItem>()
-
-    private lateinit var token: String
-    private var sessionId: String? = null
+    // 상태 변수
+    private var authToken: String? = null
+    private var quizSessionId: String? = null // 누적 복습 세션 ID (필요시 사용)
+    private val feedbackDurationMs = 700L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         supportActionBar?.hide()
-        setContentView(R.layout.activity_quiz)  // 기존 퀴즈 레이아웃 재사용
+        setContentView(R.layout.activity_quiz) // activity_quiz.xml 재사용
 
-        buttonClose = findViewById(R.id.button_close)
-        textProgress = findViewById(R.id.text_quiz_progress)
-        textQuestion = findViewById(R.id.text_quiz_word)
-        optionButtons = listOf(
-            findViewById(R.id.button_choice1),
-            findViewById(R.id.button_choice2),
-            findViewById(R.id.button_choice3),
-            findViewById(R.id.button_choice4)
-        )
+        rootQuizView = findViewById(android.R.id.content)
+        initUi()
 
-        buttonClose.setOnClickListener { finish() }
+        authToken = intent.getStringExtra("token")
+        // quizSessionId = intent.getStringExtra("sessionId") // 필요시 MainActivity에서 전달
 
-        token = intent.getStringExtra("token") ?: ""
-        sessionId = intent.getStringExtra("sessionId")
-
-        val viewModel: ReviewViewModel by viewModels()
-        viewModel.postLearningWords.observe(this) { wordList ->
-            if (wordList.isEmpty()) {
-                Toast.makeText(this, "복습할 단어가 없습니다!", Toast.LENGTH_SHORT).show()
-                finish()
-                return@observe
-            }
-
-            // 백엔드에서 받은 전체 리스트로 문제 생성
-            quizQuestions = wordList.map { word ->
-                val wrongOptions = (wordList - word).shuffled().take(3).map { it.meaning }
-                val options = (wrongOptions + word.meaning).shuffled()
-                val correctIndex = options.indexOf(word.meaning)
-                QuizQuestion(word, options, correctIndex)
-            }
-            currentIndex = 0
-            showCurrentQuestion()
-        }
-
-        viewModel.errorMessage.observe(this) { msg ->
-            msg?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
-        }
-
-        viewModel.fetchPostLearningWords(token)
-    }
-
-    private fun showCurrentQuestion() {
-        if (currentIndex >= quizQuestions.size) {
-            sendReviewResultsToServer()
+        if (authToken.isNullOrBlank()) {
+            showMsg(getString(R.string.login_info_not_valid))
+            finish()
             return
         }
-        val question = quizQuestions[currentIndex]
-        textQuestion.text = question.word.word
-        optionButtons.forEachIndexed { idx, btn ->
-            btn.text = question.options[idx]
-            btn.isEnabled = true
-        }
-        textProgress.text = "${currentIndex + 1}/${quizQuestions.size}"
-        setupOptionClickListeners(question)
+
+        observeReviewViewModel() // 단어 로드 ViewModel 관찰
+        observeStudyViewModel()  // 퀴즈 진행 ViewModel 관찰
+
+        // "오늘의 누적 복습" 단어 목록 로드
+        fetchStagedReviewWords()
+
+        closeQuizButton.setOnClickListener { finish() }
     }
 
-    private fun setupOptionClickListeners(question: QuizQuestion) {
-        optionButtons.forEachIndexed { idx, btn ->
-            btn.setOnClickListener {
-                optionButtons.forEach { it.isEnabled = false }
-                val isCorrect = idx == question.correctIndex
-                if (isCorrect) {
-                    Toast.makeText(this, "정답!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "오답!", Toast.LENGTH_SHORT).show()
+    // UI 요소 참조 초기화 (activity_quiz.xml 기준)
+    private fun initUi() {
+        quizWordText = findViewById(R.id.text_quiz_word)
+        quizProgressText = findViewById(R.id.text_quiz_progress)
+        val choice1: Button = findViewById(R.id.button_choice1)
+        val choice2: Button = findViewById(R.id.button_choice2)
+        val choice3: Button = findViewById(R.id.button_choice3)
+        val choice4: Button = findViewById(R.id.button_choice4)
+        optionButtons = listOf(choice1, choice2, choice3, choice4)
+        closeQuizButton = findViewById(R.id.button_close)
+        feedbackImage = findViewById(R.id.image_feedback_quiz)
+        quizLoadingBar = findViewById(R.id.progress_bar_quiz_loading)
+    }
+
+    // "오늘의 누적 복습" 단어 목록 로드 요청
+    private fun fetchStagedReviewWords() { // 함수명 변경
+        setLoadingState(true)
+        authToken?.let { reviewViewModel.loadStagedReviewWords(it) }
+    }
+
+    // 단어 목록 로드 결과 관찰 (ReviewViewModel)
+    private fun observeReviewViewModel() {
+        reviewViewModel.reviewableWords.observe(this) { words: List<Word>? ->
+            setLoadingState(false)
+            if (!words.isNullOrEmpty()) {
+                studyViewModel.startQuiz(words) // StudyViewModel의 startQuiz 호출
+            }
+        }
+
+        reviewViewModel.errorMessage.observe(this) { errorMessage: String? ->
+            errorMessage?.let {
+                setLoadingState(false)
+                showMsg(it)
+                reviewViewModel.consumeErrorMessage()
+                if (reviewViewModel.reviewableWords.value.isNullOrEmpty()) {
+                    Handler(Looper.getMainLooper()).postDelayed({ finish() }, 1500)
                 }
-                reviewResults.add(ReviewResultItem(question.word.id, isCorrect))
-                currentIndex++
-                showCurrentQuestion()
             }
         }
     }
 
-    private fun sendReviewResultsToServer() {
-        val request = StagedReviewResultRequest(sessionId, reviewResults)
+    // 퀴즈 진행 상태 관찰 (StudyViewModel - 사용자 제공 버전 기준)
+    private fun observeStudyViewModel() {
+        studyViewModel.currentQuestion.observe(this) { quizQuestion: QuizQuestion? ->
+            renderQuizQuestion(quizQuestion)
+        }
+
+        studyViewModel.progress.observe(this) { progress: Pair<Int, Int>? ->
+            progress?.let { quizProgressText.text = "${it.first} / ${it.second}" }
+        }
+
+        studyViewModel.isQuizFinished.observe(this) { isFinished: Boolean? ->
+            if (isFinished == true && studyViewModel.currentQuestion.value == null) {
+                val results = studyViewModel.generateQuizResults()
+                if (results.isNotEmpty()) {
+                    reportStagedQuizResults(results) // 누적 복습 결과 전송 함수 호출
+                } else {
+                    showMsg(getString(R.string.quiz_no_results_to_report))
+                    setResult(Activity.RESULT_CANCELED)
+                    finish()
+                }
+            }
+        }
+
+        studyViewModel.quizMessage.observe(this) { message: String? ->
+            message?.let {
+                showMsg(it)
+                studyViewModel.consumeQuizMessage()
+                if (studyViewModel.isQuizFinished.value == true) {
+                    Handler(Looper.getMainLooper()).postDelayed({ finish() }, 1500)
+                }
+            }
+        }
+    }
+
+    // 현재 퀴즈 문제로 UI 업데이트 및 선택지 리스너 설정
+    private fun renderQuizQuestion(quizQuestion: QuizQuestion?) {
+        if (quizQuestion == null) {
+            quizWordText.text = getString(R.string.quiz_completed_message)
+            optionButtons.forEach { it.visibility = View.INVISIBLE }
+            return
+        }
+
+        quizWordText.text = quizQuestion.word.word
+        optionButtons.forEachIndexed { index, button ->
+            button.visibility = View.VISIBLE
+            button.text = quizQuestion.options.getOrNull(index) ?: ""
+            button.isEnabled = true
+            button.setOnClickListener {
+                optionButtons.forEach { btn -> btn.isEnabled = false }
+                val isCorrect = index == quizQuestion.correctIndex
+                showFeedbackImage(isCorrect)
+                Handler(Looper.getMainLooper()).postDelayed({
+                    studyViewModel.nextQuestion(isCorrect) // StudyViewModel의 nextQuestion 호출
+                }, feedbackDurationMs)
+            }
+        }
+    }
+
+    // 정답/오답 이미지 피드백 표시
+    private fun showFeedbackImage(isCorrect: Boolean) {
+        feedbackImage.setImageResource(
+            if (isCorrect) R.drawable.blue_ring else R.drawable.red_x
+        )
+        feedbackImage.visibility = View.VISIBLE
+        Handler(Looper.getMainLooper()).postDelayed({
+            feedbackImage.visibility = View.GONE
+        }, feedbackDurationMs)
+    }
+
+    // "오늘의 누적 복습" 퀴즈 결과를 서버에 전송
+    private fun reportStagedQuizResults(results: List<ReviewResultItem>) { // 함수명 변경
+        if (authToken.isNullOrBlank()) {
+            showMsg(getString(R.string.quiz_report_token_missing))
+            finish()
+            return
+        }
+        setLoadingState(true)
+
+        val request = StagedReviewResultRequest(sessionId = quizSessionId, results = results)
+
         lifecycleScope.launch {
             try {
-                val response = ApiServicePool.reviewApi.sendPostLearningResults("Bearer $token", request)
-                if (response.success ?: false) {
-                    Toast.makeText(this@ReviewActivity, "복습 결과 전송 완료!", Toast.LENGTH_SHORT).show()
+                // "오늘의 누적 복습" 결과는 ReviewApiService의 sendReviewResults API 사용
+                val response = ApiServicePool.reviewApi.sendReviewResults("Bearer $authToken", request)
+                setLoadingState(false)
+
+                if (response.success == true) {
+                    showMsg(getString(R.string.quiz_staged_report_success)) // 성공 메시지 변경
+                    setResult(Activity.RESULT_OK)
                 } else {
-                    Toast.makeText(this@ReviewActivity, "복습 결과 전송 실패", Toast.LENGTH_SHORT).show()
+                    showMsg(response.message ?: getString(R.string.quiz_report_failed_default))
+                    setResult(Activity.RESULT_CANCELED)
                 }
             } catch (e: Exception) {
-                Toast.makeText(this@ReviewActivity, "네트워크 오류: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                setLoadingState(false)
+                showMsg(getString(R.string.quiz_report_network_error, e.localizedMessage ?: "알 수 없는 오류"))
+                setResult(Activity.RESULT_CANCELED)
             } finally {
                 finish()
             }
         }
+    }
+
+    // 로딩 인디케이터(ProgressBar) 표시/숨김
+    private fun setLoadingState(isLoading: Boolean) {
+        quizLoadingBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+    }
+
+    // Snackbar 메시지 표시 유틸리티
+    private fun showMsg(message: String, duration: Int = Snackbar.LENGTH_SHORT) {
+        Snackbar.make(rootQuizView, message, duration).show()
     }
 }

@@ -4,5 +4,9 @@
     <!-- AppCompat 기반 테마 정의 -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
     </style>
-
+    <style name="QuizChoiceButton" parent="Widget.AppCompat.Button">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">100dp</item> <item name="android:layout_marginBottom">12dp</item>
+        <item name="android:background">@drawable/rounded_blue_border_button</item> <item name="android:textColor">@android:color/black</item>
+        <item name="android:textSize">18sp</item> </style>
 </resources>
