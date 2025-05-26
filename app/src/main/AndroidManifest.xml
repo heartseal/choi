@@ -13,7 +13,7 @@
         android:theme="@style/AppTheme"
         tools:targetApi="31">
 
-        <activity
+        <!--<activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
@@ -25,15 +25,21 @@
             </intent-filter>
 
         </activity>
-
-        <activity android:name=".ui.AdminActivity" />
         <activity android:name=".ui.PassageActivity" />
         <activity android:name=".ui.WordStudyActivity" />
         <activity android:name=".ui.WordQuizActivity" />
         <activity android:name=".ui.ReviewActivity" />
+        <activity android:name=".ui.LoginActivity"/>-->
         <activity
-            android:name=".ui.LoginActivity"
-            android:exported="true"> </activity>
+            android:name=".ui.StudyRoomActivity"
+            android:exported="true">
+            <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+        </activity>
+        <activity android:name=".ui.CreateRoomActivity"/>
+        <activity android:name=".ui.AdminActivity"/>
     </application>
     <uses-permission android:name="android.permission.INTERNET"/>
 

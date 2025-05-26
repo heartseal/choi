@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.englishapp"
+    namespace = "com.example.Rainbow_Voca"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.englishapp"
+        applicationId = "com.example.Rainbow_Voca"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -82,10 +82,14 @@ dependencies {
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
 
-    // DataStore
-
     // DataStore 버전 다운그레이드
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
+    // 앱 테스트를 위한 Mock웹 서버
+    testImplementation ("com.squareup.okhttp3:mockwebserver:4.9.3" )
+    androidTestImplementation ("com.squareup.okhttp3:mockwebserver:4.9.3")
 
+    //당겨서 새로고침
+    implementation ("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation ("it.xabaras.android:recyclerview-swipedecorator:1.4") // 스와이프 배경
 }

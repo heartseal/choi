@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">EnglishApp</string>
+    <string name="app_name">Rainbow_Voca</string>
     <string name="action_close">창닫기</string>
     <string name="navigation_drawer_open">메뉴 열기</string>
     <string name="navigation_drawer_close">메뉴 닫기</string>
@@ -23,4 +23,24 @@
     <string name="quiz_report_network_error">결과 전송 중 오류 발생: %1$s</string>
     <string name="quiz_report_token_missing">결과 전송을 위한 사용자 정보가 없습니다.</string>
     <string name="feedback_image_desc">정답 or 오답 피드백 이미지</string>
+    <string name="title_my_study_rooms">내 스터디룸 목록</string>
+    <string name="message_no_study_rooms">가입한 스터디룸이 없습니다. 방을 만들거나 참여해보세요!</string>
+    <string name="button_join_room">방 가입</string>
+    <string name="button_create_room">방 생성</string>
+    <string name="dialog_title_create_room">스터디룸 생성</string>
+    <string name="dialog_hint_room_title">스터디룸 제목을 입력하세요</string>
+    <string name="dialog_title_join_room">스터디룸 참여</string>
+    <string name="dialog_hint_room_code">참여 코드를 입력하세요</string>
+    <string name="action_create">생성</string>
+    <string name="action_join">참여</string>
+    <string name="action_cancel">취소</string>
+    <string name="message_creating_room">스터디룸 생성 중...</string>
+    <string name="message_joining_room">스터디룸 참여 중...</string>
+    <string name="message_room_created_success">스터디룸이 성공적으로 생성되었습니다: %1$s (코드: %2$s)</string>
+    <string name="message_room_joined_success">\'%1$s\' 스터디룸에 참여했습니다.</string>
+    <string name="error_creating_room_failed">스터디룸 생성 실패: %1$s</string>
+    <string name="error_joining_room_failed">스터디룸 참여 실패: %1$s</string>
+    <string name="error_loading_study_rooms">스터디룸 목록 로딩 실패: %1$s</string>
+    <string name="input_room_title_empty">스터디룸 제목을 입력해주세요.</string>
+    <string name="input_room_code_empty">참여 코드를 입력해주세요.</string>
 </resources>
