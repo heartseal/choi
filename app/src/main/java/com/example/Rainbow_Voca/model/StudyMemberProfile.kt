@@ -4,9 +4,9 @@ package com.example.Rainbow_Voca.model
 data class StudyMemberProfile(
     val userId: Int,
     val nickname: String,
-    val profileImage: String? = null,
-    val totalWordCount: Int = 0,
-    val studiedWordCount: Int = 0,
+    val profileImage: String?,
     val isAttendedToday: Boolean = false,
+    val totalWordCount: Int = 100,
+    val studiedWordCount: Int = 0,
     val wrongAnswerCount: Int = 0
 )

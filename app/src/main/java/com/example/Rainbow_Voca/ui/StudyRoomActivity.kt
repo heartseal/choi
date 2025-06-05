@@ -24,7 +24,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.Rainbow_Voca.R
 import com.example.Rainbow_Voca.model.StudyRoom
-import com.example.Rainbow_Voca.network.StudyRoomSearchResultItem
+import com.example.Rainbow_Voca.model.StudyRoomSearchResultItem
 import com.example.Rainbow_Voca.util.ApiResult
 import com.example.Rainbow_Voca.util.StudyRoomAdapter
 import com.example.Rainbow_Voca.viewmodel.StudyRoomViewModel

@@ -1,211 +1,161 @@
 package com.example.Rainbow_Voca.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import android.app.Application // AndroidViewModel 사용 시 필요
+import androidx.lifecycle.AndroidViewModel // Application Context 사용 위해 변경
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import com.example.Rainbow_Voca.data.DummyStudyRoomProvider
 import com.example.Rainbow_Voca.data.StudyRoomRepository
-import com.example.Rainbow_Voca.datastore.TokenDataStore // TokenDataStore 임포트
 import com.example.Rainbow_Voca.model.StudyRoom
+import com.example.Rainbow_Voca.network.ApiStudyRoomSearchResultItem
 import com.example.Rainbow_Voca.network.RetrofitInstance
 import com.example.Rainbow_Voca.network.StudyRoomApiService
-import com.example.Rainbow_Voca.network.StudyRoomSearchResultItem
 import com.example.Rainbow_Voca.util.ApiResult
 import kotlinx.coroutines.launch
 
-/**
- * 스터디룸 관련 UI(StudyRoomActivity, CreateRoomActivity)를 위한 ViewModel.
- * 스터디룸 목록 로드, 생성, 참여, 나가기, 검색 등의 로직을 처리하기.
- */
+// Application Context를 사용하기 위해 AndroidViewModel로 변경
 class StudyRoomViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val service: StudyRoomApiService = RetrofitInstance.retrofit.create(StudyRoomApiService::class.java)
-    private val repository: StudyRoomRepository = StudyRoomRepository(service)
+    // 기능: Repository 인스턴스 (Hilt 등으로 주입하는 것이 이상적)
+    private val repository: StudyRoomRepository = StudyRoomRepository(
+        RetrofitInstance.retrofit.create(StudyRoomApiService::class.java),
+        DummyStudyRoomProvider,
+        application.applicationContext
+    )
 
-    private var localUserNickname: String = "DefaultUser"
-    private var localUserId: Int = -1
-    // private var localToken: String = "" // TokenDataStore에서 직접 가져오므로 제거 가능
-    private var localUserProfileImage: String = "default_profile"
+    // 기능: 현재 사용자 정보 (실제로는 로그인 시스템과 연동 필요)
+    var currentUserId: Int = 101 // 임시 ID
+    var currentUserNickname: String = "레인" // 임시 닉네임
+    var currentUserProfileImage: String = "logo" // 임시 프로필 이미지
 
-    val currentNickname: String get() = localUserNickname
-    val currentUserId: Int get() = localUserId
-
-    private val _joinedRooms = MutableLiveData<ApiResult<List<StudyRoom>>>()
+    // LiveData 정의
+    private val _joinedRooms = MutableLiveData<ApiResult<List<StudyRoom>>>(ApiResult.Idle)
     val joinedRooms: LiveData<ApiResult<List<StudyRoom>>> get() = _joinedRooms
 
-    private val _createOp = MutableLiveData<ApiResult<StudyRoom>>()
+    // 검색 결과 LiveData (ApiStudyRoomSearchResultItem 사용)
+    private val _foundRooms = MutableLiveData<ApiResult<List<ApiStudyRoomSearchResultItem>>>(ApiResult.Idle)
+    val foundRooms: LiveData<ApiResult<List<ApiStudyRoomSearchResultItem>>> get() = _foundRooms
+
+    private val _createOp = MutableLiveData<ApiResult<StudyRoom>>(ApiResult.Idle)
     val createOp: LiveData<ApiResult<StudyRoom>> get() = _createOp
 
-    private val _joinOp = MutableLiveData<ApiResult<StudyRoom>>()
+    private val _joinOp = MutableLiveData<ApiResult<StudyRoom>>(ApiResult.Idle)
     val joinOp: LiveData<ApiResult<StudyRoom>> get() = _joinOp
 
-    private val _leaveOp = MutableLiveData<ApiResult<Unit>>()
+    private val _leaveOp = MutableLiveData<ApiResult<Unit>>(ApiResult.Idle)
     val leaveOp: LiveData<ApiResult<Unit>> get() = _leaveOp
 
-    private val _foundRooms = MutableLiveData<ApiResult<List<StudyRoomSearchResultItem>>>()
-    val foundRooms: LiveData<ApiResult<List<StudyRoomSearchResultItem>>> get() = _foundRooms
-
-    private val _message = MutableLiveData<String?>()
-    val message: LiveData<String?> get() = _message
-
-    private val _isLoading = MutableLiveData<Boolean>()
+    private val _isLoading = MutableLiveData<Boolean>(false)
     val isLoading: LiveData<Boolean> get() = _isLoading
 
-    /** 사용자 정보를 초기화하고, 초기화 시 참여 중인 스터디룸 목록을 로드하기. */
-    fun initUser(nickname: String, id: Int, profileImage: String) { // authToken 파라미터 제거
-        localUserNickname = nickname
-        localUserId = id
-        localUserProfileImage = profileImage
-        loadJoinedRooms() // initUser 시 바로 목록 로드
+    private val _message = MutableLiveData<String?>() // 사용자에게 보여줄 메시지
+    val message: LiveData<String?> get() = _message
+
+    init {
+        loadJoinedRooms() // ViewModel 생성 시 내 방 목록 로드
     }
 
-    /** 참여 중인 스터디룸 목록을 로드하기. */
+    // 기능: 현재 사용자 정보 설정 (로그인 완료 후 호출)
+    fun initUser(nickname: String, userId: Int, profileImage: String) { // 파라미터 순서 및 타입: String, Int, String
+        this.currentUserNickname = nickname
+        this.currentUserId = userId
+        this.currentUserProfileImage = profileImage
+        loadJoinedRooms() // 사용자 정보 설정 후 내 방 목록 다시 로드
+    }
+
+    // 기능: 내가 참여한 스터디룸 목록 로드
     fun loadJoinedRooms() {
         viewModelScope.launch {
             _isLoading.value = true
-            _joinedRooms.value = ApiResult.Loading
-            val token = TokenDataStore.getToken(getApplication())
-
-            if (token == null || localUserId == -1) {
-                _message.value = "User auth info missing. Login required."
-                _joinedRooms.value = ApiResult.Error("Login or token required")
-                _isLoading.value = false
-                return@launch
-            }
-            val bearerToken = "Bearer $token"
-            val result = repository.getMyRooms(bearerToken, localUserId, localUserNickname)
+            _joinedRooms.value = ApiResult.Loading // 로딩 상태 먼저 반영
+            val result = repository.getMyJoinedStudyRooms(currentUserId, currentUserNickname) // currentUserId와 로컬용 닉네임 전달
             _joinedRooms.value = result
             if (result is ApiResult.Error) {
-                _message.value = "Load joined rooms failed: ${result.message}"
+                _message.value = "내 방 목록 로드 실패: ${result.message}"
             }
             _isLoading.value = false
         }
     }
 
-    /** 새 스터디룸을 생성하기. */
+    // 기능: 새 스터디룸 생성
     fun createNewRoom(title: String, password: String) {
         viewModelScope.launch {
             _isLoading.value = true
-            _createOp.value = ApiResult.Loading
-            val token = TokenDataStore.getToken(getApplication())
-
-            if (token == null || localUserId == -1) {
-                _message.value = "Login required to create room."
-                _createOp.value = ApiResult.Error("Login or token required")
-                _isLoading.value = false
-                return@launch
+            _createOp.value = ApiResult.Loading //
+            val result = repository.createStudyRoom(title, password) //
+            _createOp.value = result //
+            if (result is ApiResult.Success) { //
+                _message.value = "'${result.data.title}' 방 생성 완료!" //
+                loadJoinedRooms() // 방 생성 후 내 방 목록 새로고침
+            } else if (result is ApiResult.Error) { //
+                _message.value = "방 생성 실패: ${result.message}" //
             }
-            val bearerToken = "Bearer $token"
-            val result = repository.createRoom(bearerToken, title, password, localUserNickname, localUserId, localUserProfileImage)
-            _createOp.value = result
-            if (result is ApiResult.Success) {
-                _message.value = "'${result.data.title}' room created!"
-                loadJoinedRooms()
-            } else if (result is ApiResult.Error) {
-                _message.value = "Create room failed: ${result.message}"
-            }
-            _isLoading.value = false
+            _isLoading.value = false //
         }
     }
 
-    /** 기존 스터디룸에 참여하기. */
-    fun joinExistingRoom(roomTitle: String, password: String) {
+    // 기능: 기존 스터디룸 참여
+    fun joinExistingRoom(title: String, password: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _joinOp.value = ApiResult.Loading
-            val token = TokenDataStore.getToken(getApplication())
-
-            if (token == null || localUserId == -1) {
-                _message.value = "Login required to join room."
-                _joinOp.value = ApiResult.Error("Login or token required")
-                _isLoading.value = false
-                return@launch
-            }
-            val bearerToken = "Bearer $token"
-            val result = repository.joinRoom(bearerToken, roomTitle, password, localUserNickname, localUserId, localUserProfileImage)
+            val result = repository.joinStudyRoom(title, password, currentUserId)
             _joinOp.value = result
             if (result is ApiResult.Success) {
-                _message.value = "Joined '${result.data.title}' room!"
-                loadJoinedRooms()
+                _message.value = "'${result.data.title}' 방 참여 완료!"
+                loadJoinedRooms() // 방 참여 후 내 방 목록 새로고침
             } else if (result is ApiResult.Error) {
-                _message.value = "Join room failed: ${result.message}"
+                _message.value = "방 참여 실패: ${result.message}"
             }
             _isLoading.value = false
         }
     }
 
-    /** 현재 스터디룸에서 나가기. */
+    // 기능: 현재 스터디룸 나가기
     fun leaveCurrentRoom(roomTitle: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _leaveOp.value = ApiResult.Loading
-            val token = TokenDataStore.getToken(getApplication())
-
-            if (token == null || localUserId == -1) {
-                _message.value = "Login required to leave room."
-                _leaveOp.value = ApiResult.Error("Login or token required")
-                _isLoading.value = false
-                return@launch
-            }
-            val bearerToken = "Bearer $token"
-            val result = repository.leaveRoom(bearerToken, roomTitle, localUserId, localUserNickname)
+            val result = repository.leaveStudyRoom(roomTitle, currentUserId, currentUserNickname)
             _leaveOp.value = result
             if (result is ApiResult.Success) {
-                _message.value = "Left '$roomTitle' room."
-                loadJoinedRooms()
+                _message.value = "'$roomTitle' 방에서 나갔습니다."
+                loadJoinedRooms() // 방 나간 후 내 방 목록 새로고침
             } else if (result is ApiResult.Error) {
-                _message.value = "Leave room failed: ${result.message}"
+                _message.value = "방 나가기 실패: ${result.message}"
             }
             _isLoading.value = false
         }
     }
 
-    /** 스터디룸을 검색. */
+    // 기능: 참여 가능한 스터디룸 검색 (서버 연동)
     fun findRooms(query: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _foundRooms.value = ApiResult.Loading
-            val token = TokenDataStore.getToken(getApplication())
-
-            if (token == null || localUserId == -1) {
-                _message.value = "Login required to search rooms."
-                _foundRooms.value = ApiResult.Error("Login or token required")
+            if (query.isBlank()) {
+                _foundRooms.value = ApiResult.Success(emptyList()) // 빈 쿼리는 빈 결과
                 _isLoading.value = false
                 return@launch
             }
-            val bearerToken = "Bearer $token"
-            val result = repository.searchRooms(bearerToken, query, localUserId)
+            val result = repository.searchRooms(query, currentUserId) // ApiResult<List<ApiStudyRoomSearchResultItem>> 반환
             _foundRooms.value = result
             if (result is ApiResult.Error) {
-                _message.value = "Search rooms failed: ${result.message}"
+                _message.value = "방 검색 실패: ${result.message}"
             }
             _isLoading.value = false
         }
     }
 
-    /** UI에 표시된 메시지 상태를 초기화. */
+    // 기능: 메시지 소비 후 null로 초기화 (Toast 중복 방지 등)
     fun clearMessage() {
         _message.value = null
     }
 
-    /** 방 생성 작업 결과 상태를 초기화. */
-    fun clearCreateOp() {
-        _createOp.value = ApiResult.Idle
-    }
-
-    /** 방 참여 작업 결과 상태를 초기화. */
-    fun clearJoinOp() {
-        _joinOp.value = ApiResult.Idle
-    }
-
-    /** 방 나가기 작업 결과 상태를 초기화. */
-    fun clearLeaveOp() {
-        _leaveOp.value = ApiResult.Idle
-    }
-
-    /** 검색된 방 목록 상태를 초기화. */
-    fun clearFoundRooms() {
-        _foundRooms.value = ApiResult.Idle
-    }
+    // 기능: 각 작업 상태 초기화 (필요에 따라)
+    fun clearCreateOp() { _createOp.value = ApiResult.Idle }
+    fun clearJoinOp() { _joinOp.value = ApiResult.Idle }
+    fun clearLeaveOp() { _leaveOp.value = ApiResult.Idle }
+    fun clearFoundRooms() { _foundRooms.value = ApiResult.Idle }
 }
