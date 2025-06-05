@@ -119,13 +119,13 @@ interface StudyRoomApiService {
     ): JoinStudyRoomResponse //
 
     /** 현재 사용자가 참여하고 있는 스터디룸 목록 조회 API */
-    @GET("api/users/me/studyrooms") // 기능: 내 스터디룸 목록 조회
+    @GET("") // 기능: 내 스터디룸 목록 조회
     suspend fun getMyStudyRooms(
         @Header("Authorization") token: String
     ): List<MyStudyRoomBasicInfo> //
 
     /** 특정 스터디룸의 상세 정보 조회 API */
-    @GET("api/studyrooms/details") // 기능: 스터디룸 상세 정보 조회
+    @GET("") // 기능: 스터디룸 상세 정보 조회
     suspend fun getStudyRoomDetails(
         @Header("Authorization") token: String,
         @Query("title") roomTitle: String
@@ -139,8 +139,8 @@ interface StudyRoomApiService {
         @Query("memberUserId") memberUserId: Int
     ): BaseSuccessResponse //
 
-    /** 스터디룸 나가기 API (신규 추가) */
-    @POST("api/studyrooms/leave") // 기능: 스터디룸 나가기 (예시 경로)
+    /** 스터디룸 나가기 API  */
+    @POST("") // 기능: 스터디룸 나가기
     suspend fun leaveStudyRoom(
         @Header("Authorization") token: String,
         @Body roomTitleRequest: Map<String, String> // 예: {"title": "roomName"}
